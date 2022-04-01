@@ -5,8 +5,9 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[dependencies]
-serde = { version = "1.0.136", features = ["derive"] }
+[workspace]
+members = ["config_simple", "config_derive"]
 
-[dev-dependencies]
-serde_yaml = "0.8.23"
+[dependencies]
+config_simple = { path = "./config_simple" }
+config_derive = { path = "./config_derive" }
