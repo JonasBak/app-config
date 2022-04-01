@@ -1,6 +1,5 @@
-pub use config_simple;
 pub use config_derive;
-
+pub use config_simple;
 
 #[cfg(test)]
 mod tests {
@@ -30,8 +29,7 @@ mod tests {
 
     #[test]
     fn try_build_error() {
-        let result = BasicConfig::builder()
-            .field_a("test a".into()).try_build();
+        let result = BasicConfig::builder().field_a("test a".into()).try_build();
         assert_eq!(result, Err(vec!["field_b", "field_c"]));
     }
 
@@ -40,7 +38,8 @@ mod tests {
         let result = BasicConfig::builder()
             .field_a("test a".into())
             .field_b("test b".into())
-            .field_c("test c".into()).try_build();
+            .field_c("test c".into())
+            .try_build();
         assert!(result.is_ok());
         let config = result.unwrap();
         assert_eq!(config.field_a, "test a");
@@ -72,5 +71,21 @@ mod tests {
         assert!(result.is_err());
         let errors = result.err().unwrap().len();
         assert_eq!(errors, 2);
+    }
+
+    #[test]
+    fn combine_builders() {
+        let builder = BasicConfig::builder()
+            .field_a("test a".into())
+            .field_b("test b".into())
+            .combine(
+                BasicConfig::builder()
+                    .field_a("ignored".into())
+                    .field_b("ignored".into())
+                    .field_c("test c".into()),
+            );
+        assert_eq!(builder.field_a, Some("test a".into()));
+        assert_eq!(builder.field_b, Some("test b".into()));
+        assert_eq!(builder.field_c, Some("test c".into()));
     }
 }

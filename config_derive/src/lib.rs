@@ -21,7 +21,7 @@ pub fn app_config_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStr
     let gen = quote! {
         #builder_struct
         impl #struct_name {
-            fn builder() -> #builder_struct_name {
+            pub fn builder() -> #builder_struct_name {
                 #builder_struct_name::new()
             }
         }
@@ -66,6 +66,12 @@ fn declare_impl_builder_struct(
         let ident = &f.ident;
         quote! {
             #ident: self.#ident.unwrap(),
+        }
+    });
+    let combine_fields = fields.iter().map(|f| {
+        let ident = &f.ident;
+        quote! {
+            self.#ident = self.#ident.or(other.#ident);
         }
     });
     let field_functions = fields.iter().map(|f| {
@@ -129,7 +135,14 @@ fn declare_impl_builder_struct(
                     #(#assign_fields )*
                 })
             }
-            fn from_env(mut self) -> Result<#builder_struct_name, Vec<String>> {
+            pub fn combine(mut self, other: Self) -> Self {
+                #(#combine_fields )*
+                self
+
+            }
+            #(#field_functions )*
+            #(#field_from_env_functions )*
+            pub fn from_env(mut self) -> Result<#builder_struct_name, Vec<String>> {
                 let mut failed_fields = Vec::new();
                 #(#load_field_from_env )*
                 if failed_fields.len() > 0 {
@@ -137,8 +150,6 @@ fn declare_impl_builder_struct(
                 }
                 Ok(self)
             }
-            #(#field_functions )*
-            #(#field_from_env_functions )*
         }
     }
 }
