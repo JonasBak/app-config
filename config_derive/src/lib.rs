@@ -72,9 +72,40 @@ fn declare_impl_builder_struct(
         let ty = &f.ty;
         let ident = &f.ident;
         quote! {
-            fn #ident(mut self, value: #ty) -> Self {
+            pub fn #ident(mut self, value: #ty) -> Self {
                 self.#ident = Some(value);
                 self
+            }
+        }
+    });
+    let field_from_env_functions = fields.iter().map(|f| {
+        let ty = &f.ty;
+        let ident = f.ident.as_ref().unwrap();
+        let fn_name = format_ident!("{}_from_env", ident);
+        let env_name = format!("CONFIG_{}", ident);
+        quote! {
+            pub fn #fn_name(&mut self) -> Result<(), String> {
+                match std::env::var(#env_name).map(|value| (<#ty as std::str::FromStr>::from_str(&value), value)) {
+                    Ok((Ok(value), _)) => {
+                        self.#ident = Some(value);
+                        Ok(())
+                    },
+                    Ok((Err(_), raw)) => Err(format!(
+                        "could not parse environment varaible {}={}",
+                        #env_name, raw
+                    )),
+                    Err(std::env::VarError::NotPresent) => Ok(()),
+                    _ => Err(format!("could not read environment varaible {}", #env_name)),
+                }
+            }
+        }
+    });
+    let load_field_from_env = fields.iter().map(|f| {
+        let ident = f.ident.as_ref().unwrap();
+        let fn_name = format_ident!("{}_from_env", &ident);
+        quote! {
+            if let Err(e) = self.#fn_name() {
+                failed_fields.push(e);
             }
         }
     });
@@ -83,12 +114,12 @@ fn declare_impl_builder_struct(
             #(#declare_fields, )*
         }
         impl #builder_struct_name {
-            fn new() -> #builder_struct_name {
+            pub fn new() -> #builder_struct_name {
                 #builder_struct_name {
                     #(#field_defaults, )*
                 }
             }
-            fn try_build(self) -> Result<#struct_name, Vec<&'static str>> {
+            pub fn try_build(self) -> Result<#struct_name, Vec<&'static str>> {
                 let mut missing_fields = Vec::new();
                 #(#check_missing_fields )*
                 if missing_fields.len() > 0 {
@@ -98,11 +129,19 @@ fn declare_impl_builder_struct(
                     #(#assign_fields )*
                 })
             }
+            fn from_env(mut self) -> Result<#builder_struct_name, Vec<String>> {
+                let mut failed_fields = Vec::new();
+                #(#load_field_from_env )*
+                if failed_fields.len() > 0 {
+                    return Err(failed_fields);
+                }
+                Ok(self)
+            }
             #(#field_functions )*
+            #(#field_from_env_functions )*
         }
     }
 }
 
 #[cfg(test)]
-mod tests {
-}
+mod tests {}

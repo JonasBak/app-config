@@ -6,15 +6,21 @@ pub use config_derive;
 mod tests {
     use config_derive::AppConfig;
     #[derive(AppConfig, Debug, PartialEq)]
-    struct AppConfig {
+    struct BasicConfig {
         field_a: String,
         field_b: String,
         field_c: String,
     }
+    #[derive(AppConfig, Debug, PartialEq)]
+    struct MultipleTypesConfig {
+        field_a: String,
+        field_b: usize,
+        field_c: bool,
+    }
 
     #[test]
     fn set_builder_fields() {
-        let builder = AppConfig::builder()
+        let builder = BasicConfig::builder()
             .field_a("test a".into())
             .field_b("test b".into());
         assert_eq!(builder.field_a, Some("test a".into()));
@@ -24,14 +30,14 @@ mod tests {
 
     #[test]
     fn try_build_error() {
-        let result = AppConfig::builder()
+        let result = BasicConfig::builder()
             .field_a("test a".into()).try_build();
         assert_eq!(result, Err(vec!["field_b", "field_c"]));
     }
 
     #[test]
     fn try_build_ok() {
-        let result = AppConfig::builder()
+        let result = BasicConfig::builder()
             .field_a("test a".into())
             .field_b("test b".into())
             .field_c("test c".into()).try_build();
@@ -40,5 +46,31 @@ mod tests {
         assert_eq!(config.field_a, "test a");
         assert_eq!(config.field_b, "test b");
         assert_eq!(config.field_c, "test c");
+    }
+
+    #[test]
+    fn from_env_ok() {
+        std::env::set_var("CONFIG_field_a", "test a");
+        std::env::set_var("CONFIG_field_b", "123");
+        std::env::set_var("CONFIG_field_c", "false");
+        let builder_result = MultipleTypesConfig::builder().from_env();
+        assert!(builder_result.is_ok());
+        let config_result = builder_result.unwrap().try_build();
+        assert!(config_result.is_ok());
+        let config = config_result.unwrap();
+        assert_eq!(config.field_a, "test a");
+        assert_eq!(config.field_b, 123);
+        assert_eq!(config.field_c, false);
+    }
+
+    #[test]
+    fn from_env_err() {
+        std::env::set_var("CONFIG_field_a", "test a");
+        std::env::set_var("CONFIG_field_b", "test b");
+        std::env::set_var("CONFIG_field_c", "test c");
+        let result = MultipleTypesConfig::builder().from_env();
+        assert!(result.is_err());
+        let errors = result.err().unwrap().len();
+        assert_eq!(errors, 2);
     }
 }
