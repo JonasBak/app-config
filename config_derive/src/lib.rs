@@ -3,11 +3,9 @@ extern crate proc_macro;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
 use syn::spanned::Spanned;
-use syn::{
-    parse_macro_input, parse_quote, Data, DeriveInput, Fields, GenericParam, Generics, Ident, Index,
-};
+use syn::{parse_macro_input, Data, DeriveInput, Fields, Ident};
 
-#[proc_macro_derive(AppConfig)]
+#[proc_macro_derive(AppConfig, attributes(config_field))]
 pub fn app_config_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
@@ -50,8 +48,26 @@ fn declare_impl_builder_struct(
     });
     let field_defaults = fields.iter().map(|f| {
         let ident = &f.ident;
-        quote! {
-            #ident: None
+        if let Some(default_value) = f
+            .attrs
+            .iter()
+            .filter_map(|attr| attr.parse_args::<syn::MetaNameValue>().ok())
+            .filter_map(|meta| {
+                if meta.path.is_ident("default") {
+                    Some(meta.lit)
+                } else {
+                    None
+                }
+            })
+            .next()
+        {
+            quote_spanned! {f.span()=>
+                #ident: Some(#default_value.into())
+            }
+        } else {
+            quote! {
+                #ident: None
+            }
         }
     });
     let check_missing_fields = fields.iter().map(|f| {
@@ -116,9 +132,11 @@ fn declare_impl_builder_struct(
         }
     });
     quote! {
+        #[allow(dead_code)]
         struct #builder_struct_name {
             #(#declare_fields, )*
         }
+        #[allow(dead_code)]
         impl #builder_struct_name {
             pub fn new() -> #builder_struct_name {
                 #builder_struct_name {
@@ -153,6 +171,3 @@ fn declare_impl_builder_struct(
         }
     }
 }
-
-#[cfg(test)]
-mod tests {}

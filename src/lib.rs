@@ -16,6 +16,15 @@ mod tests {
         field_b: usize,
         field_c: bool,
     }
+    #[derive(AppConfig, Debug, PartialEq)]
+    struct AttrConfig {
+        #[config_field(default = "test default")]
+        field_a: String,
+        #[config_field(default = 321_usize)]
+        field_b: usize,
+        #[config_field(default = true)]
+        field_c: bool,
+    }
 
     #[test]
     fn set_builder_fields() {
@@ -87,5 +96,13 @@ mod tests {
         assert_eq!(builder.field_a, Some("test a".into()));
         assert_eq!(builder.field_b, Some("test b".into()));
         assert_eq!(builder.field_c, Some("test c".into()));
+    }
+
+    #[test]
+    fn default_attr() {
+        let builder = AttrConfig::builder();
+        assert_eq!(builder.field_a, Some("test default".into()));
+        assert_eq!(builder.field_b, Some(321));
+        assert_eq!(builder.field_c, Some(true));
     }
 }
