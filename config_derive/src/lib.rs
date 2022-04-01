@@ -83,7 +83,7 @@ fn declare_impl_builder_struct(
         let ident = f.ident.as_ref().unwrap();
         let fn_name = format_ident!("{}_from_env", ident);
         let env_name = format!("CONFIG_{}", ident);
-        quote! {
+        quote_spanned! {f.span()=>
             pub fn #fn_name(&mut self) -> Result<(), String> {
                 match std::env::var(#env_name).map(|value| (<#ty as std::str::FromStr>::from_str(&value), value)) {
                     Ok((Ok(value), _)) => {
