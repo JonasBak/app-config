@@ -31,14 +31,6 @@ pub fn app_config_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStr
     gen.into()
 }
 
-#[proc_macro_attribute]
-pub fn builder_derive(
-    _attr: proc_macro::TokenStream,
-    item: proc_macro::TokenStream,
-) -> proc_macro::TokenStream {
-    item
-}
-
 fn declare_impl_builder_struct(
     struct_name: &Ident,
     builder_struct_name: &Ident,
