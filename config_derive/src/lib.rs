@@ -19,7 +19,11 @@ pub fn app_config_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStr
     let gen = quote! {
         #builder_struct
         impl #struct_name {
-            pub fn builder() -> #builder_struct_name {
+        }
+        impl AppConfig for #struct_name {
+            type Builder = #builder_struct_name;
+
+            fn builder() -> #builder_struct_name {
                 #builder_struct_name::new()
             }
         }
