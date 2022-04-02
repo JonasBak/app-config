@@ -3,7 +3,7 @@ extern crate proc_macro;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
 use syn::spanned::Spanned;
-use syn::{parse_macro_input, Attribute, Data, DeriveInput, Field, Fields, Ident, Lit};
+use syn::{parse_macro_input, Attribute, Data, DeriveInput, Field, Fields, Ident, Lit, Type};
 
 #[proc_macro_derive(AppConfig, attributes(config_field, nested_field))]
 pub fn app_config_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -67,6 +67,10 @@ fn declare_impl_builder_struct(
         } else if let Some(default_value) = default_field_value(f) {
             quote_spanned! {f.span()=>
                 #ident: Some(#default_value.into())
+            }
+        } else if is_optional_field(f).is_some() {
+            quote_spanned! {f.span()=>
+                #ident: Some(None)
             }
         } else {
             quote! {
@@ -142,12 +146,25 @@ fn declare_impl_builder_struct(
                 }
             }
         } else {
+            let (ty, set_value) = if let Some(inner) = is_optional_field(f) {
+                let ty = inner;
+                let set_value = quote! {
+                    self.#ident = Some(Some(value));
+                };
+                (ty, set_value)
+            } else {
+                let ty = ty.clone();
+                let set_value = quote! {
+                    self.#ident = Some(value);
+                };
+                (ty, set_value)
+            };
             quote_spanned! {f.span()=>
                 pub fn #fn_name(&mut self, prefix: &str) -> Result<(), String> {
                     let env_name = format!("{}_{}", prefix, stringify!(#ident));
                     match std::env::var(&env_name).map(|value| (<#ty as std::str::FromStr>::from_str(&value), value)) {
                         Ok((Ok(value), _)) => {
-                            self.#ident = Some(value);
+                            #set_value
                             Ok(())
                         },
                         Ok((Err(_), raw)) => Err(format!(
@@ -244,4 +261,30 @@ fn is_nested_field(field: &Field) -> bool {
         .iter()
         .find(|attr| attr.path.is_ident("nested_field"))
         .is_some()
+}
+
+fn is_optional_field(field: &Field) -> Option<Type> {
+    match &field.ty {
+        Type::Path(type_path) => {
+            match type_path
+                .path
+                .segments
+                .first()
+                .map(|s| (&s.ident, &s.arguments))
+            {
+                Some((
+                    ident,
+                    syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
+                        args,
+                        ..
+                    }),
+                )) if ident == "Option" => match args.first() {
+                    Some(syn::GenericArgument::Type(ty)) => Some(ty.clone()),
+                    _ => None,
+                },
+                _ => None,
+            }
+        }
+        _ => None,
+    }
 }

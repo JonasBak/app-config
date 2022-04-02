@@ -33,12 +33,17 @@ struct NestingConfig {
     nested_a: BasicConfig,
 }
 
-#[derive(AppConfig)]
+#[derive(AppConfig)] // TODO try to allow for all derives on one line, formating messes this up
 #[derive(Deserialize)]
 struct DeserializeConfig {
     field_a: String,
     field_b: String,
     field_c: String,
+}
+
+#[derive(AppConfig, Debug, PartialEq)]
+struct OptionalFieldConfig {
+    optional: Option<usize>,
 }
 
 #[test]
@@ -175,8 +180,27 @@ fn nested_from_env() {
 #[test]
 fn deserialize_builder() {
     let config_yml = "field_a: test a\nfield_b: test b";
-    let builder: <DeserializeConfig as AppConfig>::Builder = serde_yaml::from_str(&config_yml).unwrap();
+    let builder: <DeserializeConfig as AppConfig>::Builder =
+        serde_yaml::from_str(&config_yml).unwrap();
     assert_eq!(builder.field_a, Some("test a".into()));
     assert_eq!(builder.field_b, Some("test b".into()));
     assert_eq!(builder.field_c, None);
+}
+
+#[test]
+fn optional_field_none() {
+    let result = OptionalFieldConfig::builder().try_build();
+    assert!(result.is_ok());
+    let config = result.unwrap();
+    assert_eq!(config.optional, None);
+}
+
+#[test]
+fn optional_field_some() {
+    let result = OptionalFieldConfig::builder()
+        .optional(Some(123))
+        .try_build();
+    assert!(result.is_ok());
+    let config = result.unwrap();
+    assert_eq!(config.optional, Some(123));
 }
