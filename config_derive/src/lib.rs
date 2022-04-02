@@ -3,7 +3,7 @@ extern crate proc_macro;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
 use syn::spanned::Spanned;
-use syn::{parse_macro_input, Data, DeriveInput, Field, Fields, Ident, Lit};
+use syn::{parse_macro_input, Attribute, Data, DeriveInput, Field, Fields, Ident, Lit};
 
 #[proc_macro_derive(AppConfig, attributes(config_field, nested_field))]
 pub fn app_config_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -11,10 +11,12 @@ pub fn app_config_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStr
 
     let struct_name = &input.ident;
 
+    let derives = input.attrs.iter().find(|attr| attr.path.is_ident("derive"));
+
     let builder_struct_name = format_ident!("_{}Builder", struct_name);
 
     let builder_struct =
-        declare_impl_builder_struct(&struct_name, &builder_struct_name, &input.data);
+        declare_impl_builder_struct(&struct_name, &builder_struct_name, &input.data, derives);
 
     let gen = quote! {
         #builder_struct
@@ -33,6 +35,7 @@ fn declare_impl_builder_struct(
     struct_name: &Ident,
     builder_struct_name: &Ident,
     data: &Data,
+    derives: Option<&Attribute>,
 ) -> TokenStream {
     let fields = match *data {
         Data::Struct(ref data) => match data.fields {
@@ -177,6 +180,7 @@ fn declare_impl_builder_struct(
     });
     quote! {
         #[allow(dead_code)]
+        #derives
         struct #builder_struct_name {
             #(#declare_fields, )*
         }
@@ -225,29 +229,19 @@ fn default_field_value(field: &Field) -> Option<Lit> {
         .iter()
         .filter(|attr| attr.path.is_ident("config_field"))
         .filter_map(|attr| attr.parse_args::<syn::MetaNameValue>().ok())
-        .filter_map(|meta| {
+        .find_map(|meta| {
             if meta.path.is_ident("default") {
                 Some(meta.lit)
             } else {
                 None
             }
         })
-        .next()
 }
 
 fn is_nested_field(field: &Field) -> bool {
     field
         .attrs
         .iter()
-        .filter(|attr| attr.path.is_ident("nested_field"))
-        // .filter_map(|attr| attr.parse_args::<syn::MetaNameValue>().ok())
-        // .filter_map(|meta| {
-        //     if path.is_ident("nested") {
-        //         Some(meta.lit)
-        //     } else {
-        //         None
-        //     }
-        // })
-        .next()
+        .find(|attr| attr.path.is_ident("nested_field"))
         .is_some()
 }

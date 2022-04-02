@@ -1,4 +1,5 @@
 use app_config::AppConfig;
+use serde::Deserialize;
 
 #[derive(AppConfig, Debug, PartialEq)]
 struct BasicConfig {
@@ -30,6 +31,14 @@ fn _get_some_partial_builder() -> <AttrDefaultConfig as AppConfig>::Builder {
 struct NestingConfig {
     #[nested_field]
     nested_a: BasicConfig,
+}
+
+#[derive(AppConfig)]
+#[derive(Deserialize)]
+struct DeserializeConfig {
+    field_a: String,
+    field_b: String,
+    field_c: String,
 }
 
 #[test]
@@ -132,12 +141,14 @@ fn default_attr() {
 
 #[test]
 fn simple_nested() {
-    let result = NestingConfig::builder().nested_a(
-        BasicConfig::builder()
-            .field_a("test a".into())
-            .field_b("test b".into())
-            .field_c("test c".into()),
-    ).try_build();
+    let result = NestingConfig::builder()
+        .nested_a(
+            BasicConfig::builder()
+                .field_a("test a".into())
+                .field_b("test b".into())
+                .field_c("test c".into()),
+        )
+        .try_build();
     assert!(result.is_ok());
     let config = result.unwrap();
     assert_eq!(config.nested_a.field_a, "test a");
@@ -159,4 +170,13 @@ fn nested_from_env() {
     assert_eq!(config.nested_a.field_a, "test a");
     assert_eq!(config.nested_a.field_b, "test b");
     assert_eq!(config.nested_a.field_c, "test c");
+}
+
+#[test]
+fn deserialize_builder() {
+    let config_yml = "field_a: test a\nfield_b: test b";
+    let builder: <DeserializeConfig as AppConfig>::Builder = serde_yaml::from_str(&config_yml).unwrap();
+    assert_eq!(builder.field_a, Some("test a".into()));
+    assert_eq!(builder.field_b, Some("test b".into()));
+    assert_eq!(builder.field_c, None);
 }

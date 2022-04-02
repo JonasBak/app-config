@@ -2,7 +2,7 @@
 
 The goal of this package is to provide an easy way to build a "configuration struct" for your rust program, where you can combine data from multiple sources (cli arguments, environment, configuration file, defaults) to build a typed configuration object.
 
-This is done by providing a trait your struct can `derive`. When you add `#[derive(AppConfig)]` to your struct, it will implement the `AppConfig` trait, creating a `Builder` type, and providing the `fn builder() -> Self::Builder` function. This `Builder` type can be used to specify fields with the "builder pattern", load available fields from the environment, load fields from a file (TODO), and combine the fields of multiple builders. The builder can be turned into your struct with the function `try_build()`, which fails if there are missing fields.
+This is done by providing a trait your struct can `derive`. When you add `#[derive(AppConfig)]` to your struct, it will implement the `AppConfig` trait, creating a `Builder` type, and providing the `fn builder() -> Self::Builder` function. This `Builder` type can be used to specify fields with the "builder pattern", load available fields from the environment, load fields from a file, and combine the fields of multiple builders. The builder can be turned into your struct with the function `try_build()`, which fails if there are missing fields.
 
 ## Example
 

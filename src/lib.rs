@@ -1,5 +1,4 @@
 pub use config_derive::*;
-pub use config_simple;
 
 pub trait AppConfig {
     type Builder;
@@ -7,5 +6,4 @@ pub trait AppConfig {
 }
 
 #[cfg(test)]
-mod tests {
-}
+mod tests {}

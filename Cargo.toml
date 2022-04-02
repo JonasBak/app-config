@@ -9,5 +9,8 @@ edition = "2021"
 members = ["config_simple", "config_derive"]
 
 [dependencies]
-config_simple = { path = "./config_simple" }
 config_derive = { path = "./config_derive" }
+
+[dev-dependencies]
+serde_yaml = "0.8.23"
+serde = { version = "1.0.136", features = ["derive"] }
