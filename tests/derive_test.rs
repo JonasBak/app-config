@@ -33,6 +33,7 @@ struct NestingConfig {
     nested_a: BasicConfig,
 }
 
+#[allow(dead_code)]
 #[derive(AppConfig)]
 #[builder_derive(Deserialize)]
 struct DeserializeConfig {
@@ -78,7 +79,6 @@ fn try_build_ok() {
 
 #[test]
 fn from_env_ok() {
-    // This test is a bit unpredictable
     std::env::set_var("CONFIG_field_a", "test a");
     std::env::set_var("CONFIG_field_b", "123");
     std::env::set_var("CONFIG_field_c", "false");
@@ -94,11 +94,10 @@ fn from_env_ok() {
 
 #[test]
 fn from_env_err() {
-    // This test is a bit unpredictable
-    std::env::set_var("CONFIG_field_a", "test a");
-    std::env::set_var("CONFIG_field_b", "test b");
-    std::env::set_var("CONFIG_field_c", "test c");
-    let result = MultipleTypesConfig::builder().from_env();
+    std::env::set_var("CONFIG_from_env_err_field_a", "test a");
+    std::env::set_var("CONFIG_from_env_err_field_b", "test b");
+    std::env::set_var("CONFIG_from_env_err_field_c", "test c");
+    let result = MultipleTypesConfig::builder().from_env_prefixed("CONFIG_from_env_err");
     assert!(result.is_err());
     let errors = result.err().unwrap().len();
     assert_eq!(errors, 2);
@@ -106,7 +105,6 @@ fn from_env_err() {
 
 #[test]
 fn from_env_custom_prefix() {
-    // This test is a bit unpredictable
     std::env::set_var("MY_CUSTOM_PREFIX_field_a", "test a");
     std::env::set_var("MY_CUSTOM_PREFIX_field_b", "123");
     std::env::set_var("MY_CUSTOM_PREFIX_field_c", "false");
@@ -163,11 +161,10 @@ fn simple_nested() {
 
 #[test]
 fn nested_from_env() {
-    // This test is a bit unpredictable
-    std::env::set_var("CONFIG_nested_a_field_a", "test a");
-    std::env::set_var("CONFIG_nested_a_field_b", "test b");
-    std::env::set_var("CONFIG_nested_a_field_c", "test c");
-    let builder_result = NestingConfig::builder().from_env();
+    std::env::set_var("CONFIG_nested_from_env_nested_a_field_a", "test a");
+    std::env::set_var("CONFIG_nested_from_env_nested_a_field_b", "test b");
+    std::env::set_var("CONFIG_nested_from_env_nested_a_field_c", "test c");
+    let builder_result = NestingConfig::builder().from_env_prefixed("CONFIG_nested_from_env");
     assert!(builder_result.is_ok());
     let config_result = builder_result.unwrap().try_build();
     assert!(config_result.is_ok());

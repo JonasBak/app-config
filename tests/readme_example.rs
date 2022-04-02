@@ -10,7 +10,7 @@ struct MyConfig {
 
 fn get_config() -> MyConfig {
     MyConfig::builder()
-        .from_env()
+        .from_env_prefixed("CONFIG_readme_example")
         .unwrap()
         .field_a("foo".into())
         .try_build()
@@ -19,8 +19,7 @@ fn get_config() -> MyConfig {
 
 #[test]
 fn readme_example() {
-    // This test is a bit unpredictable
-    std::env::set_var("CONFIG_field_b", "123");
+    std::env::set_var("CONFIG_readme_example_field_b", "123");
     let config = get_config();
     assert_eq!(config.field_a, "foo");
     assert_eq!(config.field_b, 123);
