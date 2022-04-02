@@ -76,9 +76,7 @@ fn declare_impl_builder_struct(
     let check_missing_fields = fields.iter().map(|f| {
         let ident = &f.ident;
         if is_nested_field(f) {
-            quote! {
-                // self.#ident.try_build()?;
-            }
+            quote! {}
         } else {
             quote! {
                 if self.#ident.is_none() {
@@ -136,9 +134,9 @@ fn declare_impl_builder_struct(
         let fn_name = format_ident!("{}_from_env", ident);
         if is_nested_field(f) {
             quote_spanned! {f.span()=>
-                pub fn #fn_name(&mut self, prefix: &str) -> Result<(), String> {
+                pub fn #fn_name(&mut self, prefix: &str) -> Result<(), Vec<String>> {
                     let prefix = format!("{}_{}", prefix, stringify!(#ident));
-                    // self.#ident.from_env_prefixed(&prefix) TODO
+                    self.#ident = <#ty as AppConfig>::builder().from_env_prefixed(&prefix)?;
                     Ok(())
                 }
             }
@@ -165,9 +163,17 @@ fn declare_impl_builder_struct(
     let load_field_from_env = fields.iter().map(|f| {
         let ident = f.ident.as_ref().unwrap();
         let fn_name = format_ident!("{}_from_env", &ident);
-        quote! {
-            if let Err(e) = self.#fn_name(prefix) {
-                failed_fields.push(e);
+        if is_nested_field(f) {
+            quote_spanned! {f.span()=>
+                if let Err(mut e) = self.#fn_name(prefix) {
+                    failed_fields.append(&mut e);
+                }
+            }
+        } else {
+            quote! {
+                if let Err(e) = self.#fn_name(prefix) {
+                    failed_fields.push(e);
+                }
             }
         }
     });

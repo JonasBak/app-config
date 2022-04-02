@@ -129,3 +129,34 @@ fn default_attr() {
     assert_eq!(builder.field_b, Some(321));
     assert_eq!(builder.field_c, Some(true));
 }
+
+#[test]
+fn simple_nested() {
+    let result = NestingConfig::builder().nested_a(
+        BasicConfig::builder()
+            .field_a("test a".into())
+            .field_b("test b".into())
+            .field_c("test c".into()),
+    ).try_build();
+    assert!(result.is_ok());
+    let config = result.unwrap();
+    assert_eq!(config.nested_a.field_a, "test a");
+    assert_eq!(config.nested_a.field_b, "test b");
+    assert_eq!(config.nested_a.field_c, "test c");
+}
+
+#[test]
+fn nested_from_env() {
+    // This test is a bit unpredictable
+    std::env::set_var("CONFIG_nested_a_field_a", "test a");
+    std::env::set_var("CONFIG_nested_a_field_b", "test b");
+    std::env::set_var("CONFIG_nested_a_field_c", "test c");
+    let builder_result = NestingConfig::builder().from_env();
+    assert!(builder_result.is_ok());
+    let config_result = builder_result.unwrap().try_build();
+    assert!(config_result.is_ok());
+    let config = config_result.unwrap();
+    assert_eq!(config.nested_a.field_a, "test a");
+    assert_eq!(config.nested_a.field_b, "test b");
+    assert_eq!(config.nested_a.field_c, "test c");
+}
