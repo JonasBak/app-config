@@ -5,13 +5,13 @@ use quote::{format_ident, quote, quote_spanned};
 use syn::spanned::Spanned;
 use syn::{parse_macro_input, Attribute, Data, DeriveInput, Field, Fields, Ident, Lit, Type};
 
-#[proc_macro_derive(AppConfig, attributes(config_field, nested_field))]
+#[proc_macro_derive(AppConfig, attributes(builder_derive, config_field, nested_field))]
 pub fn app_config_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
     let struct_name = &input.ident;
 
-    let derives = input.attrs.iter().find(|attr| attr.path.is_ident("derive"));
+    let derives = get_builder_derives(&input.attrs);
 
     let builder_struct_name = format_ident!("_{}Builder", struct_name);
 
@@ -31,11 +31,19 @@ pub fn app_config_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStr
     gen.into()
 }
 
+#[proc_macro_attribute]
+pub fn builder_derive(
+    _attr: proc_macro::TokenStream,
+    item: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    item
+}
+
 fn declare_impl_builder_struct(
     struct_name: &Ident,
     builder_struct_name: &Ident,
     data: &Data,
-    derives: Option<&Attribute>,
+    derives: Option<TokenStream>,
 ) -> TokenStream {
     let fields = match *data {
         Data::Struct(ref data) => match data.fields {
@@ -237,6 +245,21 @@ fn declare_impl_builder_struct(
                 Ok(self)
             }
         }
+    }
+}
+
+fn get_builder_derives(attrs: &Vec<Attribute>) -> Option<TokenStream> {
+    if let Some(attr) = attrs
+        .iter()
+        .find(|attr| attr.path.is_ident("builder_derive"))
+    {
+        let tokens = &attr.tokens;
+        let derives = quote! {
+            #[derive #tokens]
+        };
+        Some(derives)
+    } else {
+        None
     }
 }
 

@@ -33,8 +33,8 @@ struct NestingConfig {
     nested_a: BasicConfig,
 }
 
-#[derive(AppConfig)] // TODO try to allow for all derives on one line, formating messes this up
-#[derive(Deserialize)]
+#[derive(AppConfig)]
+#[builder_derive(Deserialize)]
 struct DeserializeConfig {
     field_a: String,
     field_b: String,
