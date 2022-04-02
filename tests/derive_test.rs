@@ -33,6 +33,12 @@ struct NestingConfig {
     nested_a: BasicConfig,
 }
 
+#[derive(AppConfig, Debug, PartialEq)]
+struct DoubleNestingConfig {
+    #[nested_field]
+    nested_b: NestingConfig,
+}
+
 #[allow(dead_code)]
 #[derive(AppConfig)]
 #[builder_derive(Deserialize)]
@@ -45,6 +51,14 @@ struct DeserializeConfig {
 #[derive(AppConfig, Debug, PartialEq)]
 struct OptionalFieldConfig {
     optional: Option<usize>,
+}
+
+#[allow(dead_code)]
+#[derive(AppConfig)]
+#[builder_derive(Deserialize)]
+struct NestedDeserializeConfig {
+    #[nested_field]
+    nested: DeserializeConfig,
 }
 
 #[test]
@@ -160,6 +174,25 @@ fn simple_nested() {
 }
 
 #[test]
+fn double_nested() {
+    let result = DoubleNestingConfig::builder()
+        .nested_b(
+            NestingConfig::builder().nested_a(
+                BasicConfig::builder()
+                    .field_a("test a".into())
+                    .field_b("test b".into())
+                    .field_c("test c".into()),
+            ),
+        )
+        .try_build();
+    assert!(result.is_ok());
+    let config = result.unwrap();
+    assert_eq!(config.nested_b.nested_a.field_a, "test a");
+    assert_eq!(config.nested_b.nested_a.field_b, "test b");
+    assert_eq!(config.nested_b.nested_a.field_c, "test c");
+}
+
+#[test]
 fn nested_from_env() {
     std::env::set_var("CONFIG_nested_from_env_nested_a_field_a", "test a");
     std::env::set_var("CONFIG_nested_from_env_nested_a_field_b", "test b");
@@ -200,4 +233,14 @@ fn optional_field_some() {
     assert!(result.is_ok());
     let config = result.unwrap();
     assert_eq!(config.optional, Some(123));
+}
+
+#[test]
+fn nested_deserialize_builder() {
+    let config_yml = "nested:\n  field_a: test a\n  field_b: test b";
+    let builder: <NestedDeserializeConfig as AppConfig>::Builder =
+        serde_yaml::from_str(&config_yml).unwrap();
+    assert_eq!(builder.nested.field_a, Some("test a".into()));
+    assert_eq!(builder.nested.field_b, Some("test b".into()));
+    assert_eq!(builder.nested.field_c, None);
 }
