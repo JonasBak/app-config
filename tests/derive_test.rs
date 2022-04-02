@@ -13,7 +13,7 @@ struct MultipleTypesConfig {
     field_c: bool,
 }
 #[derive(AppConfig, Debug, PartialEq)]
-struct AttrConfig {
+struct AttrDefaultConfig {
     #[config_field(default = "test default")]
     field_a: String,
     #[config_field(default = 321_usize)]
@@ -22,8 +22,14 @@ struct AttrConfig {
     field_c: bool,
 }
 
-fn _get_some_partial_builder() -> <AttrConfig as AppConfig>::Builder {
-    AttrConfig::builder()
+fn _get_some_partial_builder() -> <AttrDefaultConfig as AppConfig>::Builder {
+    AttrDefaultConfig::builder()
+}
+
+#[derive(AppConfig, Debug, PartialEq)]
+struct NestingConfig {
+    #[nested_field]
+    nested_a: BasicConfig,
 }
 
 #[test]
@@ -58,6 +64,7 @@ fn try_build_ok() {
 
 #[test]
 fn from_env_ok() {
+    // This test is a bit unpredictable
     std::env::set_var("CONFIG_field_a", "test a");
     std::env::set_var("CONFIG_field_b", "123");
     std::env::set_var("CONFIG_field_c", "false");
@@ -84,6 +91,22 @@ fn from_env_err() {
 }
 
 #[test]
+fn from_env_custom_prefix() {
+    // This test is a bit unpredictable
+    std::env::set_var("MY_CUSTOM_PREFIX_field_a", "test a");
+    std::env::set_var("MY_CUSTOM_PREFIX_field_b", "123");
+    std::env::set_var("MY_CUSTOM_PREFIX_field_c", "false");
+    let builder_result = MultipleTypesConfig::builder().from_env_prefixed("MY_CUSTOM_PREFIX");
+    assert!(builder_result.is_ok());
+    let config_result = builder_result.unwrap().try_build();
+    assert!(config_result.is_ok());
+    let config = config_result.unwrap();
+    assert_eq!(config.field_a, "test a");
+    assert_eq!(config.field_b, 123);
+    assert_eq!(config.field_c, false);
+}
+
+#[test]
 fn combine_builders() {
     let builder = BasicConfig::builder()
         .field_a("test a".into())
@@ -101,7 +124,7 @@ fn combine_builders() {
 
 #[test]
 fn default_attr() {
-    let builder = AttrConfig::builder();
+    let builder = AttrDefaultConfig::builder();
     assert_eq!(builder.field_a, Some("test default".into()));
     assert_eq!(builder.field_b, Some(321));
     assert_eq!(builder.field_c, Some(true));
