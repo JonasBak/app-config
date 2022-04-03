@@ -150,7 +150,7 @@ fn combine_builders() {
 
 #[test]
 fn default_attr() {
-    let builder = AttrDefaultConfig::builder();
+    let builder = AttrDefaultConfig::builder().default();
     assert_eq!(builder.field_a, Some("test default".into()));
     assert_eq!(builder.field_b, Some(321));
     assert_eq!(builder.field_c, Some(true));
@@ -259,4 +259,41 @@ fn map_nested() {
     assert_eq!(config.nested_a.field_a, "test a");
     assert_eq!(config.nested_a.field_b, "test b");
     assert_eq!(config.nested_a.field_c, "test c");
+}
+
+#[test]
+fn nested_combine() {
+    let result = NestingConfig::builder()
+        .map_nested_a(|b| b.field_a("test a".into()).field_b("test b".into()))
+        .combine(NestingConfig::builder().map_nested_a(|b| b.field_c("test c".into())))
+        .try_build();
+    assert!(result.is_ok());
+    let config = result.unwrap();
+    assert_eq!(config.nested_a.field_a, "test a");
+    assert_eq!(config.nested_a.field_b, "test b");
+    assert_eq!(config.nested_a.field_c, "test c");
+
+    let result = NestingConfig::builder()
+        .map_nested_a(|b| b.field_a("test a".into()).field_b("test b".into()))
+        .combine(NestingConfig::builder().map_nested_a(|b| {
+            b.field_b("should not be used".into())
+                .field_c("test c".into())
+        }))
+        .try_build();
+    assert!(result.is_ok());
+    let config = result.unwrap();
+    assert_eq!(config.nested_a.field_a, "test a");
+    assert_eq!(config.nested_a.field_b, "test b");
+    assert_eq!(config.nested_a.field_c, "test c");
+}
+
+#[test]
+fn default_attr_not_used_when_from_env() {
+    std::env::set_var("NO_DEFAULT_VALUE_field_c", "false");
+    let builder = AttrDefaultConfig::builder()
+        .from_env_prefixed("NO_DEFAULT_VALUE")
+        .unwrap();
+    assert_eq!(builder.field_a, None);
+    assert_eq!(builder.field_b, None);
+    assert_eq!(builder.field_c, Some(false));
 }

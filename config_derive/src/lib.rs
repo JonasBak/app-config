@@ -57,12 +57,29 @@ fn declare_impl_builder_struct(
             }
         }
     });
+    let field_empty = fields.iter().map(|f| {
+        let ty = &f.ty;
+        let ident = &f.ident;
+        if is_nested_field(f) {
+            quote_spanned! {f.span()=>
+                #ident: <#ty as AppConfig>::Builder::new()
+            }
+        } else if is_optional_field(f).is_some() {
+            quote_spanned! {f.span()=>
+                #ident: Some(None)
+            }
+        } else {
+            quote! {
+                #ident: None
+            }
+        }
+    });
     let field_defaults = fields.iter().map(|f| {
         let ty = &f.ty;
         let ident = &f.ident;
         if is_nested_field(f) {
             quote_spanned! {f.span()=>
-                #ident: <#ty as AppConfig>::builder()
+                #ident: <#ty as AppConfig>::builder().default()
             }
         } else if let Some(default_value) = default_field_value(f) {
             quote_spanned! {f.span()=>
@@ -188,18 +205,23 @@ fn declare_impl_builder_struct(
         let fn_name = format_ident!("{}_from_env", &ident);
         if is_nested_field(f) {
             quote_spanned! {f.span()=>
-                if let Err(mut e) = self.#fn_name(prefix) {
+                if let Err(mut e) = builder.#fn_name(prefix) {
                     failed_fields.append(&mut e);
                 }
             }
         } else {
             quote! {
-                if let Err(e) = self.#fn_name(prefix) {
+                if let Err(e) = builder.#fn_name(prefix) {
                     failed_fields.push(e);
                 }
             }
         }
     });
+    // Some functions (default, from_env, from_env_prefixed) take `self` but just returns
+    // a new struct without using or changing `self`. This is because I wanted all "entrypoints"
+    // to the builder struct to be `MyConfigStruct::builder()`, so you'd do
+    // `MyConfigStruct::builder().default()` instead of `MyConfigStruct::Builder::default()`
+    // even though that may be more "correct"
     quote! {
         #[allow(dead_code)]
         #derives
@@ -209,6 +231,11 @@ fn declare_impl_builder_struct(
         #[allow(dead_code)]
         impl #builder_struct_name {
             pub fn new() -> #builder_struct_name {
+                #builder_struct_name {
+                    #(#field_empty, )*
+                }
+            }
+            pub fn default(self) -> #builder_struct_name {
                 #builder_struct_name {
                     #(#field_defaults, )*
                 }
@@ -230,16 +257,17 @@ fn declare_impl_builder_struct(
             }
             #(#field_functions )*
             #(#field_from_env_functions )*
-            pub fn from_env(mut self) -> Result<#builder_struct_name, Vec<String>> {
+            pub fn from_env(self) -> Result<#builder_struct_name, Vec<String>> {
                 self.from_env_prefixed("CONFIG")
             }
-            pub fn from_env_prefixed(mut self, prefix: &str) -> Result<#builder_struct_name, Vec<String>> {
+            pub fn from_env_prefixed(self, prefix: &str) -> Result<#builder_struct_name, Vec<String>> {
+                let mut builder = #builder_struct_name::new();
                 let mut failed_fields = Vec::new();
                 #(#load_field_from_env )*
                 if failed_fields.len() > 0 {
                     return Err(failed_fields);
                 }
-                Ok(self)
+                Ok(builder)
             }
         }
     }

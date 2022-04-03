@@ -20,6 +20,7 @@ fn get_config() -> MyConfig {
         .from_env()
         .unwrap()
         .field_a("foo".into())
+        .combine(MyConfig::builder().default())
         .try_build()
         .unwrap()
 }
@@ -32,5 +33,74 @@ MyConfig {
     field_a: "foo",
     field_b: 123,
     field_c: true,
+}
+```
+
+You can also use it in more complex cases, like below, with nested structs, deserialization, and combining multiple builders/sources. Earlier sources take precedent, so in this case the priority of the fields are:
+
+1. `port` is always set to `PORT_NUMBER_FROM_CLI`
+2. Then environment variables (like `COOL_APP_postgres_password=secret`)
+3. Then values from the yaml file/string `CONFIG_YML`
+4. Then default values
+
+```rust
+#[derive(AppConfig)]
+#[builder_derive(Deserialize)]
+struct PostgresConfig {
+    username: String,
+    password: String,
+}
+
+#[derive(AppConfig)]
+#[builder_derive(Deserialize)]
+struct CoolAppConfig {
+    #[config_field(default = 8080_u16)]
+    port: u16,
+    #[config_field(default = [127, 0, 0, 1])]
+    addr: std::net::IpAddr,
+
+    #[nested_field]
+    postgres: PostgresConfig,
+
+    #[config_field(default = "example.com")]
+    public_url: String,
+}
+
+static CONFIG_YML: &'static str = r#"
+addr: 0.0.0.0
+postgres:
+    username: postgres
+    password: changeme
+"#;
+
+static PORT_NUMBER_FROM_CLI: u16 = 80;
+
+fn get_cool_app_config() -> CoolAppConfig {
+    CoolAppConfig::builder()
+        .port(PORT_NUMBER_FROM_CLI)
+        .combine(
+            CoolAppConfig::builder()
+                .from_env_prefixed("COOL_APP")
+                .unwrap(),
+        )
+        .combine(serde_yaml::from_str(CONFIG_YML).unwrap())
+        .combine(CoolAppConfig::builder().default())
+        .try_build()
+        .unwrap()
+}
+```
+
+If we call `get_cool_app_config` with the environment variable `COOL_APP_postgres_password=secret` set, we should get something that looks like this:
+
+
+```rust
+CoolAppConfig {
+    port: 80,
+    addr: std::net::IpAddr::from([0, 0, 0, 0]),
+    postgres: PostgresConfig {
+        username: "postgres",
+        password: "secret",
+    },
+    public_url: "example.com",
 }
 ```
