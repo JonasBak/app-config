@@ -244,3 +244,19 @@ fn nested_deserialize_builder() {
     assert_eq!(builder.nested.field_b, Some("test b".into()));
     assert_eq!(builder.nested.field_c, None);
 }
+
+#[test]
+fn map_nested() {
+    let result = NestingConfig::builder()
+        .map_nested_a(|b| {
+            b.field_a("test a".into())
+                .field_b("test b".into())
+                .field_c("test c".into())
+        })
+        .try_build();
+    assert!(result.is_ok());
+    let config = result.unwrap();
+    assert_eq!(config.nested_a.field_a, "test a");
+    assert_eq!(config.nested_a.field_b, "test b");
+    assert_eq!(config.nested_a.field_c, "test c");
+}

@@ -116,11 +116,16 @@ fn declare_impl_builder_struct(
     });
     let field_functions = fields.iter().map(|f| {
         let ty = &f.ty;
-        let ident = &f.ident;
+        let ident = f.ident.as_ref().unwrap();
+        let map_ident = format_ident!("map_{}", &ident);
         if is_nested_field(f) {
             quote! {
                 pub fn #ident(mut self, value: <#ty as AppConfig>::Builder) -> Self {
                     self.#ident = value;
+                    self
+                }
+                pub fn #map_ident(mut self, map: fn(<#ty as AppConfig>::Builder) -> <#ty as AppConfig>::Builder) -> Self {
+                    self.#ident = (map)(self.#ident);
                     self
                 }
             }
