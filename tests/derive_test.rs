@@ -61,6 +61,12 @@ struct NestedDeserializeConfig {
     nested: DeserializeConfig,
 }
 
+#[derive(AppConfig, Debug, PartialEq)]
+struct OptionalNestedConfig {
+    #[nested_field]
+    optional: Option<BasicConfig>,
+}
+
 #[test]
 fn set_builder_fields() {
     let builder = BasicConfig::builder()
@@ -296,4 +302,33 @@ fn default_attr_not_used_when_from_env() {
     assert_eq!(builder.field_a, None);
     assert_eq!(builder.field_b, None);
     assert_eq!(builder.field_c, Some(false));
+}
+
+#[test]
+fn optional_nested_field_none() {
+    let result = OptionalNestedConfig::builder().try_build();
+    assert!(result.is_ok());
+    let config = result.unwrap();
+    assert_eq!(config.optional, None);
+}
+
+#[test]
+fn optional_nested_field_some() {
+    let result = OptionalNestedConfig::builder()
+        .map_some_optional(|b| {
+            b.field_a("test a".into())
+                .field_b("test b".into())
+                .field_c("test c".into())
+        })
+        .try_build();
+    assert!(result.is_ok());
+    let config = result.unwrap();
+    assert_eq!(
+        config.optional,
+        Some(BasicConfig {
+            field_a: "test a".into(),
+            field_b: "test b".into(),
+            field_c: "test c".into()
+        })
+    );
 }

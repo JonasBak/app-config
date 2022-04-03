@@ -47,9 +47,13 @@ fn declare_impl_builder_struct(
     let declare_fields = fields.iter().map(|f| {
         let ty = &f.ty;
         let ident = &f.ident;
-        if is_nested_field(f) {
+        if let Some(NestedField::Nested) = is_nested_field(f) {
             quote! {
                 pub #ident: <#ty as AppConfig>::Builder,
+            }
+        } else if let Some(NestedField::NestedOptional(ty)) = is_nested_field(f) {
+            quote! {
+                pub #ident: Option<<#ty as AppConfig>::Builder>,
             }
         } else {
             quote! {
@@ -60,9 +64,13 @@ fn declare_impl_builder_struct(
     let field_empty = fields.iter().map(|f| {
         let ty = &f.ty;
         let ident = &f.ident;
-        if is_nested_field(f) {
+        if let Some(NestedField::Nested) = is_nested_field(f) {
             quote_spanned! {f.span()=>
                 #ident: <#ty as AppConfig>::Builder::new(),
+            }
+        } else if let Some(NestedField::NestedOptional(_)) = is_nested_field(f) {
+            quote_spanned! {f.span()=>
+                #ident: None,
             }
         } else if is_optional_field(f).is_some() {
             quote_spanned! {f.span()=>
@@ -77,9 +85,15 @@ fn declare_impl_builder_struct(
     let field_defaults = fields.iter().map(|f| {
         let ty = &f.ty;
         let ident = &f.ident;
-        if is_nested_field(f) {
+        if let Some(NestedField::Nested) = is_nested_field(f) {
             quote_spanned! {f.span()=>
                 #ident: <#ty as AppConfig>::Builder::new_default(),
+            }
+        } else if let Some(NestedField::NestedOptional(_)) = is_nested_field(f) {
+            // TODO
+            // How should this work?
+            quote_spanned! {f.span()=>
+                #ident: None,
             }
         } else if let Some(default_value) = default_field_value(f) {
             quote_spanned! {f.span()=>
@@ -97,7 +111,9 @@ fn declare_impl_builder_struct(
     });
     let check_missing_fields = fields.iter().map(|f| {
         let ident = &f.ident;
-        if is_nested_field(f) {
+        if let Some(NestedField::Nested) = is_nested_field(f) {
+            quote! {}
+        } else if let Some(NestedField::NestedOptional(_)) = is_nested_field(f) {
             quote! {}
         } else {
             quote! {
@@ -109,9 +125,13 @@ fn declare_impl_builder_struct(
     });
     let assign_fields = fields.iter().map(|f| {
         let ident = &f.ident;
-        if is_nested_field(f) {
+        if let Some(NestedField::Nested) = is_nested_field(f) {
             quote! {
                 #ident: self.#ident.try_build()?,
+            }
+        } else if let Some(NestedField::NestedOptional(_)) = is_nested_field(f) {
+            quote! {
+                #ident: self.#ident.map(|b| b.try_build()).transpose()?,
             }
         } else {
             quote! {
@@ -121,9 +141,19 @@ fn declare_impl_builder_struct(
     });
     let combine_fields = fields.iter().map(|f| {
         let ident = &f.ident;
-        if is_nested_field(f) {
+        if let Some(NestedField::Nested) = is_nested_field(f) {
             quote! {
                 self.#ident = self.#ident.combine(other.#ident);
+            }
+        } else if let Some(NestedField::NestedOptional(_)) = is_nested_field(f) {
+            // TODO
+            // Write test for this
+            quote! {
+                self.#ident = match (self.#ident, other.#ident) {
+                    (Some(a), Some(b)) => Some(a.combine(b)),
+                    (Some(a), None) | (None, Some(a)) => Some(a),
+                    (None, None) => None
+                };
             }
         } else {
             quote! {
@@ -135,7 +165,7 @@ fn declare_impl_builder_struct(
         let ty = &f.ty;
         let ident = f.ident.as_ref().unwrap();
         let map_ident = format_ident!("map_{}", &ident);
-        if is_nested_field(f) {
+        if let Some(NestedField::Nested) = is_nested_field(f) {
             quote! {
                 pub fn #ident(mut self, value: <#ty as AppConfig>::Builder) -> Self {
                     self.#ident = value;
@@ -143,6 +173,23 @@ fn declare_impl_builder_struct(
                 }
                 pub fn #map_ident(mut self, map: fn(<#ty as AppConfig>::Builder) -> <#ty as AppConfig>::Builder) -> Self {
                     self.#ident = (map)(self.#ident);
+                    self
+                }
+            }
+        } else if let Some(NestedField::NestedOptional(ty)) = is_nested_field(f) {
+            // Find better name
+            let map_some_ident = format_ident!("map_some_{}", &ident);
+            quote! {
+                pub fn #ident(mut self, value: Option<<#ty as AppConfig>::Builder>) -> Self {
+                    self.#ident = value;
+                    self
+                }
+                pub fn #map_ident(mut self, map: fn(<#ty as AppConfig>::Builder) -> <#ty as AppConfig>::Builder) -> Self {
+                    self.#ident = self.#ident.take().map(map);
+                    self
+                }
+                pub fn #map_some_ident(mut self, map: fn(<#ty as AppConfig>::Builder) -> <#ty as AppConfig>::Builder) -> Self {
+                    self.#ident = Some((map)(self.#ident.take().unwrap_or_else(|| <#ty as AppConfig>::Builder::new())));
                     self
                 }
             }
@@ -159,13 +206,23 @@ fn declare_impl_builder_struct(
         let ty = &f.ty;
         let ident = f.ident.as_ref().unwrap();
         let fn_name = format_ident!("{}_from_env", ident);
-        if is_nested_field(f) {
+        if let Some(NestedField::Nested) = is_nested_field(f) {
             quote_spanned! {f.span()=>
                 pub fn #fn_name(&mut self, prefix: &str) -> Result<(), Vec<String>> {
                     let prefix = format!("{}_{}", prefix, stringify!(#ident));
                     self.#ident = <#ty as AppConfig>::builder().from_env_prefixed(&prefix)?;
                     Ok(())
                 }
+            }
+        } else if let Some(NestedField::NestedOptional(_ty)) = is_nested_field(f) {
+            // TODO
+            // How should this work? I want to be able to call from_env without populating
+            // optional fields with empty values.
+            // I could add an is_empty function that checks if any
+            // fields are set, then set self.#ident to Some(nested_from_env) if not empty
+            // and None otherwise
+            quote! {
+
             }
         } else {
             let (ty, set_value) = if let Some(inner) = is_optional_field(f) {
@@ -203,11 +260,17 @@ fn declare_impl_builder_struct(
     let load_field_from_env = fields.iter().map(|f| {
         let ident = f.ident.as_ref().unwrap();
         let fn_name = format_ident!("{}_from_env", &ident);
-        if is_nested_field(f) {
+        if let Some(NestedField::Nested) = is_nested_field(f) {
             quote_spanned! {f.span()=>
                 if let Err(mut e) = builder.#fn_name(prefix) {
                     failed_fields.append(&mut e);
                 }
+            }
+        } else if let Some(NestedField::NestedOptional(_ty)) = is_nested_field(f) {
+            // TODO
+            // Implementation depends on outcome of field_from_env_functions decision
+            quote! {
+
             }
         } else {
             quote! {
@@ -312,12 +375,41 @@ fn default_field_value(field: &Field) -> Option<Lit> {
         })
 }
 
-fn is_nested_field(field: &Field) -> bool {
+enum NestedField {
+    Nested,
+    NestedOptional(Type),
+}
+
+fn is_nested_field(field: &Field) -> Option<NestedField> {
     field
         .attrs
         .iter()
         .find(|attr| attr.path.is_ident("nested_field"))
-        .is_some()
+        .map(|_| match &field.ty {
+            Type::Path(type_path) => {
+                match type_path
+                    .path
+                    .segments
+                    .first()
+                    .map(|s| (&s.ident, &s.arguments))
+                {
+                    Some((
+                        ident,
+                        syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
+                            args,
+                            ..
+                        }),
+                    )) if ident == "Option" => match args.first() {
+                        Some(syn::GenericArgument::Type(ty)) => {
+                            NestedField::NestedOptional(ty.clone())
+                        }
+                        _ => unimplemented!(),
+                    },
+                    _ => NestedField::Nested,
+                }
+            }
+            _ => unimplemented!(),
+        })
 }
 
 fn is_optional_field(field: &Field) -> Option<Type> {
