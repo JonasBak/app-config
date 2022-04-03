@@ -13,7 +13,7 @@ pub fn app_config_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStr
 
     let derives = get_builder_derives(&input.attrs);
 
-    let builder_struct_name = format_ident!("_{}Builder", struct_name);
+    let builder_struct_name = format_ident!("{}Builder", struct_name);
 
     let builder_struct =
         declare_impl_builder_struct(&struct_name, &builder_struct_name, &input.data, derives);
@@ -49,11 +49,11 @@ fn declare_impl_builder_struct(
         let ident = &f.ident;
         if is_nested_field(f) {
             quote! {
-                pub #ident: <#ty as AppConfig>::Builder
+                pub #ident: <#ty as AppConfig>::Builder,
             }
         } else {
             quote! {
-                pub #ident: Option<#ty>
+                pub #ident: Option<#ty>,
             }
         }
     });
@@ -62,15 +62,15 @@ fn declare_impl_builder_struct(
         let ident = &f.ident;
         if is_nested_field(f) {
             quote_spanned! {f.span()=>
-                #ident: <#ty as AppConfig>::Builder::new()
+                #ident: <#ty as AppConfig>::Builder::new(),
             }
         } else if is_optional_field(f).is_some() {
             quote_spanned! {f.span()=>
-                #ident: Some(None)
+                #ident: Some(None),
             }
         } else {
             quote! {
-                #ident: None
+                #ident: None,
             }
         }
     });
@@ -79,19 +79,19 @@ fn declare_impl_builder_struct(
         let ident = &f.ident;
         if is_nested_field(f) {
             quote_spanned! {f.span()=>
-                #ident: <#ty as AppConfig>::builder().default()
+                #ident: <#ty as AppConfig>::Builder::new_default(),
             }
         } else if let Some(default_value) = default_field_value(f) {
             quote_spanned! {f.span()=>
-                #ident: Some(#default_value.into())
+                #ident: Some(#default_value.into()),
             }
         } else if is_optional_field(f).is_some() {
             quote_spanned! {f.span()=>
-                #ident: Some(None)
+                #ident: Some(None),
             }
         } else {
             quote! {
-                #ident: None
+                #ident: None,
             }
         }
     });
@@ -226,19 +226,22 @@ fn declare_impl_builder_struct(
         #[allow(dead_code)]
         #derives
         struct #builder_struct_name {
-            #(#declare_fields, )*
+            #(#declare_fields )*
         }
         #[allow(dead_code)]
         impl #builder_struct_name {
             pub fn new() -> #builder_struct_name {
                 #builder_struct_name {
-                    #(#field_empty, )*
+                    #(#field_empty )*
+                }
+            }
+            pub fn new_default() -> #builder_struct_name {
+                #builder_struct_name {
+                    #(#field_defaults )*
                 }
             }
             pub fn default(self) -> #builder_struct_name {
-                #builder_struct_name {
-                    #(#field_defaults, )*
-                }
+                Self::new_default()
             }
             pub fn try_build(self) -> Result<#struct_name, Vec<&'static str>> {
                 let mut missing_fields = Vec::new();
@@ -257,10 +260,13 @@ fn declare_impl_builder_struct(
             }
             #(#field_functions )*
             #(#field_from_env_functions )*
-            pub fn from_env(self) -> Result<#builder_struct_name, Vec<String>> {
-                self.from_env_prefixed("CONFIG")
+            pub fn new_from_env() -> Result<#builder_struct_name, Vec<String>> {
+                Self::new_from_env_prefixed("CONFIG")
             }
-            pub fn from_env_prefixed(self, prefix: &str) -> Result<#builder_struct_name, Vec<String>> {
+            pub fn from_env(self) -> Result<#builder_struct_name, Vec<String>> {
+                Self::new_from_env()
+            }
+            pub fn new_from_env_prefixed(prefix: &str) -> Result<#builder_struct_name, Vec<String>> {
                 let mut builder = #builder_struct_name::new();
                 let mut failed_fields = Vec::new();
                 #(#load_field_from_env )*
@@ -268,6 +274,9 @@ fn declare_impl_builder_struct(
                     return Err(failed_fields);
                 }
                 Ok(builder)
+            }
+            pub fn from_env_prefixed(self, prefix: &str) -> Result<#builder_struct_name, Vec<String>> {
+                Self::new_from_env_prefixed(prefix)
             }
         }
     }
