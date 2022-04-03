@@ -313,6 +313,14 @@ fn optional_nested_field_none() {
 }
 
 #[test]
+fn optional_nested_field_partial_fails() {
+    let result = OptionalNestedConfig::builder()
+        .map_some_optional(|b| b.field_a("test a".into()).field_b("test b".into()))
+        .try_build();
+    assert!(result.is_err());
+}
+
+#[test]
 fn optional_nested_field_some() {
     let result = OptionalNestedConfig::builder()
         .map_some_optional(|b| {

@@ -269,9 +269,7 @@ fn declare_impl_builder_struct(
         } else if let Some(NestedField::NestedOptional(_ty)) = is_nested_field(f) {
             // TODO
             // Implementation depends on outcome of field_from_env_functions decision
-            quote! {
-
-            }
+            quote! {}
         } else {
             quote! {
                 if let Err(e) = builder.#fn_name(prefix) {
@@ -385,30 +383,9 @@ fn is_nested_field(field: &Field) -> Option<NestedField> {
         .attrs
         .iter()
         .find(|attr| attr.path.is_ident("nested_field"))
-        .map(|_| match &field.ty {
-            Type::Path(type_path) => {
-                match type_path
-                    .path
-                    .segments
-                    .first()
-                    .map(|s| (&s.ident, &s.arguments))
-                {
-                    Some((
-                        ident,
-                        syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
-                            args,
-                            ..
-                        }),
-                    )) if ident == "Option" => match args.first() {
-                        Some(syn::GenericArgument::Type(ty)) => {
-                            NestedField::NestedOptional(ty.clone())
-                        }
-                        _ => unimplemented!(),
-                    },
-                    _ => NestedField::Nested,
-                }
-            }
-            _ => unimplemented!(),
+        .map(|_| match is_optional_field(field) {
+            Some(ty) => NestedField::NestedOptional(ty),
+            None => NestedField::Nested,
         })
 }
 
