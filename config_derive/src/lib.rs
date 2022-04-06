@@ -53,7 +53,7 @@ fn declare_impl_builder_struct(
             }
         } else if let Some(NestedField::NestedOptional(ty)) = is_nested_field(f) {
             quote! {
-                pub #ident: Option<<#ty as AppConfig>::Builder>,
+                pub #ident: <#ty as AppConfig>::Builder,
             }
         } else {
             quote! {
@@ -68,9 +68,9 @@ fn declare_impl_builder_struct(
             quote_spanned! {f.span()=>
                 #ident: <#ty as AppConfig>::Builder::new(),
             }
-        } else if let Some(NestedField::NestedOptional(_)) = is_nested_field(f) {
+        } else if let Some(NestedField::NestedOptional(ty)) = is_nested_field(f) {
             quote_spanned! {f.span()=>
-                #ident: None,
+                #ident: <#ty as AppConfig>::Builder::new(),
             }
         } else if is_optional_field(f).is_some() {
             quote_spanned! {f.span()=>
@@ -89,11 +89,9 @@ fn declare_impl_builder_struct(
             quote_spanned! {f.span()=>
                 #ident: <#ty as AppConfig>::Builder::new_default(),
             }
-        } else if let Some(NestedField::NestedOptional(_)) = is_nested_field(f) {
-            // TODO
-            // How should this work?
+        } else if let Some(NestedField::NestedOptional(ty)) = is_nested_field(f) {
             quote_spanned! {f.span()=>
-                #ident: None,
+                #ident: <#ty as AppConfig>::Builder::new(),
             }
         } else if let Some(default_value) = default_field_value(f) {
             quote_spanned! {f.span()=>
@@ -106,6 +104,34 @@ fn declare_impl_builder_struct(
         } else {
             quote! {
                 #ident: None,
+            }
+        }
+    });
+    let fields_not_set = fields.iter().map(|f| {
+        let ident = &f.ident;
+        if let Some(NestedField::Nested) = is_nested_field(f) {
+            quote! {
+                if !self.#ident.is_empty() {
+                    return false;
+                }
+            }
+        } else if let Some(NestedField::NestedOptional(_)) = is_nested_field(f) {
+            quote! {
+                if !self.#ident.is_empty() {
+                    return false;
+                }
+            }
+        } else if is_optional_field(f).is_some() {
+            quote_spanned! {f.span()=>
+                if !self.#ident.as_ref().map(|b| b.is_none()).unwrap_or(true) {
+                    return false;
+                }
+            }
+        } else {
+            quote! {
+                if self.#ident.is_some() {
+                    return false;
+                }
             }
         }
     });
@@ -131,7 +157,11 @@ fn declare_impl_builder_struct(
             }
         } else if let Some(NestedField::NestedOptional(_)) = is_nested_field(f) {
             quote! {
-                #ident: self.#ident.map(|b| b.try_build()).transpose()?,
+                #ident: if self.#ident.is_empty() {
+                        None
+                    } else {
+                        Some(self.#ident.try_build()?)
+                    },
             }
         } else {
             quote! {
@@ -146,14 +176,8 @@ fn declare_impl_builder_struct(
                 self.#ident = self.#ident.combine(other.#ident);
             }
         } else if let Some(NestedField::NestedOptional(_)) = is_nested_field(f) {
-            // TODO
-            // Write test for this
             quote! {
-                self.#ident = match (self.#ident, other.#ident) {
-                    (Some(a), Some(b)) => Some(a.combine(b)),
-                    (Some(a), None) | (None, Some(a)) => Some(a),
-                    (None, None) => None
-                };
+                self.#ident = self.#ident.combine(other.#ident);
             }
         } else {
             quote! {
@@ -177,19 +201,13 @@ fn declare_impl_builder_struct(
                 }
             }
         } else if let Some(NestedField::NestedOptional(ty)) = is_nested_field(f) {
-            // Find better name
-            let map_some_ident = format_ident!("map_some_{}", &ident);
             quote! {
-                pub fn #ident(mut self, value: Option<<#ty as AppConfig>::Builder>) -> Self {
+                pub fn #ident(mut self, value: <#ty as AppConfig>::Builder) -> Self {
                     self.#ident = value;
                     self
                 }
                 pub fn #map_ident(mut self, map: fn(<#ty as AppConfig>::Builder) -> <#ty as AppConfig>::Builder) -> Self {
-                    self.#ident = self.#ident.take().map(map);
-                    self
-                }
-                pub fn #map_some_ident(mut self, map: fn(<#ty as AppConfig>::Builder) -> <#ty as AppConfig>::Builder) -> Self {
-                    self.#ident = Some((map)(self.#ident.take().unwrap_or_else(|| <#ty as AppConfig>::Builder::new())));
+                    self.#ident = (map)(self.#ident);
                     self
                 }
             }
@@ -214,15 +232,13 @@ fn declare_impl_builder_struct(
                     Ok(())
                 }
             }
-        } else if let Some(NestedField::NestedOptional(_ty)) = is_nested_field(f) {
-            // TODO
-            // How should this work? I want to be able to call from_env without populating
-            // optional fields with empty values.
-            // I could add an is_empty function that checks if any
-            // fields are set, then set self.#ident to Some(nested_from_env) if not empty
-            // and None otherwise
+        } else if let Some(NestedField::NestedOptional(ty)) = is_nested_field(f) {
             quote! {
-
+                pub fn #fn_name(&mut self, prefix: &str) -> Result<(), Vec<String>> {
+                    let prefix = format!("{}_{}", prefix, stringify!(#ident));
+                    self.#ident = <#ty as AppConfig>::builder().from_env_prefixed(&prefix)?;
+                    Ok(())
+                }
             }
         } else {
             let (ty, set_value) = if let Some(inner) = is_optional_field(f) {
@@ -267,9 +283,11 @@ fn declare_impl_builder_struct(
                 }
             }
         } else if let Some(NestedField::NestedOptional(_ty)) = is_nested_field(f) {
-            // TODO
-            // Implementation depends on outcome of field_from_env_functions decision
-            quote! {}
+            quote! {
+                if let Err(mut e) = builder.#fn_name(prefix) {
+                    failed_fields.append(&mut e);
+                }
+            }
         } else {
             quote! {
                 if let Err(e) = builder.#fn_name(prefix) {
@@ -303,6 +321,10 @@ fn declare_impl_builder_struct(
             }
             pub fn default(self) -> #builder_struct_name {
                 Self::new_default()
+            }
+            pub fn is_empty(&self) -> bool {
+                #(#fields_not_set )*
+                true
             }
             pub fn try_build(self) -> Result<#struct_name, Vec<&'static str>> {
                 let mut missing_fields = Vec::new();

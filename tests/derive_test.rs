@@ -67,6 +67,20 @@ struct OptionalNestedConfig {
     optional: Option<BasicConfig>,
 }
 
+#[derive(AppConfig, Debug, PartialEq)]
+struct MultipleOptionalConfig {
+    optional_a: Option<usize>,
+    optional_b: Option<usize>,
+    #[nested_field]
+    optional: Option<BasicConfig>,
+}
+
+#[derive(AppConfig, Debug, PartialEq)]
+struct OptionalNestedWithDefaultConfig {
+    #[nested_field]
+    optional: Option<AttrDefaultConfig>,
+}
+
 #[test]
 fn set_builder_fields() {
     let builder = BasicConfig::builder()
@@ -315,7 +329,16 @@ fn optional_nested_field_none() {
 #[test]
 fn optional_nested_field_partial_fails() {
     let result = OptionalNestedConfig::builder()
-        .map_some_optional(|b| b.field_a("test a".into()).field_b("test b".into()))
+        .map_optional(|b| b.field_a("test a".into()).field_b("test b".into()))
+        .try_build();
+    assert!(result.is_err());
+
+    let result = OptionalNestedConfig::builder()
+        .map_optional(|b| b.field_a("test a".into()).field_b("test b".into()))
+        .combine(
+            OptionalNestedConfig::builder()
+                .map_optional(|b| b.field_a("test a".into()).field_b("test b".into())),
+        )
         .try_build();
     assert!(result.is_err());
 }
@@ -323,7 +346,7 @@ fn optional_nested_field_partial_fails() {
 #[test]
 fn optional_nested_field_some() {
     let result = OptionalNestedConfig::builder()
-        .map_some_optional(|b| {
+        .map_optional(|b| {
             b.field_a("test a".into())
                 .field_b("test b".into())
                 .field_c("test c".into())
@@ -339,4 +362,39 @@ fn optional_nested_field_some() {
             field_c: "test c".into()
         })
     );
+
+    let result = OptionalNestedConfig::builder()
+        .map_optional(|b| b.field_a("test a".into()).field_b("test b".into()))
+        .combine(
+            OptionalNestedConfig::builder()
+                .map_optional(|b| b.field_a("ignored".into()).field_c("test c".into())),
+        )
+        .try_build();
+    assert!(result.is_ok());
+    let config = result.unwrap();
+    assert_eq!(
+        config.optional,
+        Some(BasicConfig {
+            field_a: "test a".into(),
+            field_b: "test b".into(),
+            field_c: "test c".into()
+        })
+    );
+}
+
+#[test]
+fn builder_empty() {
+    let builder = BasicConfig::builder();
+    assert_eq!(builder.is_empty(), true);
+
+    let builder = BasicConfig::builder().field_a("test a".into());
+    assert_eq!(builder.is_empty(), false);
+}
+
+#[test]
+fn optional_nested_ignore_defaults() {
+    let result = OptionalNestedWithDefaultConfig::builder().try_build();
+    assert!(result.is_ok());
+    let config = result.unwrap();
+    assert_eq!(config.optional, None);
 }
