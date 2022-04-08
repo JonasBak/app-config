@@ -5,5 +5,9 @@ pub trait AppConfig {
     fn builder() -> Self::Builder;
 }
 
+pub trait AppConfigChoice {
+    type Choices;
+}
+
 #[cfg(test)]
 mod tests {}

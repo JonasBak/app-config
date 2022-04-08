@@ -81,6 +81,12 @@ struct OptionalNestedWithDefaultConfig {
     optional: Option<AttrDefaultConfig>,
 }
 
+#[derive(AppConfig, Debug, PartialEq)]
+enum EnumConfig {
+    ChoiceA(BasicConfig),
+    ChoiceB(AttrDefaultConfig),
+}
+
 #[test]
 fn set_builder_fields() {
     let builder = BasicConfig::builder()
@@ -397,4 +403,18 @@ fn optional_nested_ignore_defaults() {
     assert!(result.is_ok());
     let config = result.unwrap();
     assert_eq!(config.optional, None);
+}
+
+#[test]
+fn enum_config() {
+    let mut builder = EnumConfig::builder();
+    builder.ChoiceB = AttrDefaultConfig::builder().default();
+    builder.using = Some("ChoiceB".into());
+    let result = builder.try_build();
+    assert!(result.is_ok());
+    let config = result.unwrap();
+    assert_eq!(
+        config,
+        EnumConfig::ChoiceB(AttrDefaultConfig::builder().default().try_build().unwrap())
+    );
 }

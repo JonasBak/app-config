@@ -15,8 +15,17 @@ pub fn app_config_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStr
 
     let builder_struct_name = format_ident!("{}Builder", struct_name);
 
-    let builder_struct =
-        declare_impl_builder_struct(&struct_name, &builder_struct_name, &input.data, derives);
+    // let builder_struct =
+    //     declare_impl_builder_struct(&struct_name, &builder_struct_name, &input.data, derives);
+    let builder_struct = match input.data {
+        Data::Struct(ref data) => {
+            declare_impl_builder_struct(&struct_name, &builder_struct_name, data, derives)
+        }
+        Data::Enum(ref data) => {
+            declare_impl_builder_enum(&struct_name, &builder_struct_name, data, derives)
+        }
+        _ => unimplemented!(),
+    };
 
     let gen = quote! {
         #builder_struct
@@ -34,14 +43,11 @@ pub fn app_config_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStr
 fn declare_impl_builder_struct(
     struct_name: &Ident,
     builder_struct_name: &Ident,
-    data: &Data,
+    data: &syn::DataStruct,
     derives: Option<TokenStream>,
 ) -> TokenStream {
-    let fields = match *data {
-        Data::Struct(ref data) => match data.fields {
-            Fields::Named(ref fields) => &fields.named,
-            _ => unimplemented!(),
-        },
+    let fields = match &data.fields {
+        Fields::Named(fields) => &fields.named,
         _ => unimplemented!(),
     };
     let declare_fields = fields.iter().map(|f| {
@@ -361,6 +367,101 @@ fn declare_impl_builder_struct(
             pub fn from_env_prefixed(self, prefix: &str) -> Result<#builder_struct_name, Vec<String>> {
                 Self::new_from_env_prefixed(prefix)
             }
+        }
+    }
+}
+
+fn declare_impl_builder_enum(
+    struct_name: &Ident,
+    builder_struct_name: &Ident,
+    data: &syn::DataEnum,
+    derives: Option<TokenStream>,
+) -> TokenStream {
+    let variants: Vec<_> = data.variants.iter().map(|variant| {
+        (variant.ident.clone(),
+            match &variant.fields {
+                Fields::Unnamed(fields) => {
+                    if fields.unnamed.len() != 1 {
+                        panic!("expected each enum variant to have one field, {} has {}", variant.ident, fields.unnamed.len());
+                    }
+                    fields.unnamed.first().unwrap().clone()
+                }
+                _ => unimplemented!()
+            }
+        )
+    }).collect();
+    let declare_fields = variants.iter().map(|(variant, field)| {
+        let ty = &field.ty;
+        quote! {
+            pub #variant: <#ty as AppConfig>::Builder,
+        }
+    });
+    let field_empty = variants.iter().map(|(variant, field)| {
+        let ty = &field.ty;
+        quote! {
+            #variant: <#ty as AppConfig>::Builder::new(),
+        }
+    });
+    let match_variant = variants.iter().map(|(variant, _)| {
+        quote! {
+            if self.using.as_ref().map(|u| u == stringify!(#variant)).unwrap_or(false) {
+                return Ok(#struct_name::#variant(self.#variant.try_build()?));
+            }
+        }
+    });
+    quote! {
+        #[allow(dead_code)]
+        #derives
+        struct #builder_struct_name {
+            pub using: Option<String>,
+            #(#declare_fields )*
+        }
+        #[allow(dead_code)]
+        impl #builder_struct_name {
+            pub fn new() -> #builder_struct_name {
+                #builder_struct_name {
+                    using: None,
+                    #(#field_empty )*
+                }
+            }
+            pub fn new_default() -> #builder_struct_name {
+                // TODO
+                Self::new()
+            }
+            pub fn default(self) -> #builder_struct_name {
+                // TODO
+                Self::new()
+                // Self::new_default()
+            }
+            pub fn try_build(self) -> Result<#struct_name, Vec<&'static str>> {
+                #(#match_variant )*
+                return Err(vec!["using is not specified"]);
+            }
+            // pub fn combine(mut self, other: Self) -> Self {
+            //     // #(#combine_fields )*
+            //     self
+
+            // }
+            // // #(#field_functions )*
+            // // #(#field_from_env_functions )*
+            // pub fn new_from_env() -> Result<#builder_struct_name, Vec<String>> {
+            //     Self::new_from_env_prefixed("CONFIG")
+            // }
+            // pub fn from_env(self) -> Result<#builder_struct_name, Vec<String>> {
+            //     Self::new_from_env()
+            // }
+            // pub fn new_from_env_prefixed(prefix: &str) -> Result<#builder_struct_name, Vec<String>> {
+            //     let mut builder = #builder_struct_name::new();
+            //     let mut failed_fields = Vec::new();
+            //     // #(#load_field_from_env )*
+            //     if failed_fields.len() > 0 {
+            //         return Err(failed_fields);
+            //     }
+            //     Ok(builder)
+            // }
+            // pub fn from_env_prefixed(self, prefix: &str) -> Result<#builder_struct_name, Vec<String>> {
+            //     Self::new_from_env_prefixed(prefix)
+            // }
         }
     }
 }
