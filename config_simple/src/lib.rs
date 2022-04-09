@@ -5,23 +5,6 @@ macro_rules! AppConfig {
     ( $( $x:ident: $t:ty = $v:expr ),*, ) => {
         use serde::{Deserialize};
         use std::str::FromStr;
-        trait ParseFromEnv<T> {
-            fn parse_from_env(var: String) -> Result<Option<T>, String>;
-        }
-
-        struct Env;
-
-        impl<T: FromStr> ParseFromEnv<T> for Env {
-            fn parse_from_env(var: String) -> Result<Option<T>, String> {
-                match std::env::var(&var).map(|value| T::from_str(&value)) {
-                    Ok(Ok(value)) => Ok(Some(value)),
-                    Ok(Err(_)) => Err(format!("could not parse environment varaible {}", var)),
-                    Err(std::env::VarError::NotPresent) => Ok(None),
-                    _ => Err(format!("could not read environment varaible {}", var)),
-                }
-            }
-        }
-
         #[derive(Debug, Clone)]
         pub struct AppConfig {
             $(
@@ -56,7 +39,13 @@ macro_rules! AppConfig {
             pub fn from_env() -> Result<Self, String> {
                 let mut builder = Self::new();
                 $(
-                    builder.$x = <Env as ParseFromEnv::<$t>>::parse_from_env(format!("CONFIG_{}", stringify!($x)))?;
+                    let var = format!("CONFIG_{}", stringify!($x));
+                    builder.$x = match std::env::var(&var).map(|value| <$t as FromStr>::from_str(&value)) {
+                        Ok(Ok(value)) => Some(value),
+                        Ok(Err(_)) => Err(format!("could not parse environment varaible {}", var))?,
+                        Err(std::env::VarError::NotPresent) => None,
+                        _ => Err(format!("could not read environment varaible {}", var))?,
+                    };
                 )*
                 Ok(builder)
             }
