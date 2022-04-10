@@ -408,8 +408,8 @@ fn optional_nested_ignore_defaults() {
 #[test]
 fn enum_config() {
     let mut builder = EnumConfig::builder();
-    builder.ChoiceB = AttrDefaultConfig::builder().default();
-    builder.using = Some("ChoiceB".into());
+    builder.choice_b = AttrDefaultConfig::builder().default();
+    builder.using = Some("choice_b".into());
     let result = builder.try_build();
     assert!(result.is_ok());
     let config = result.unwrap();

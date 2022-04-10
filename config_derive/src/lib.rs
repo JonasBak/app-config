@@ -1,9 +1,11 @@
 extern crate proc_macro;
 
+use lazy_static::lazy_static;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
+use regex::Regex;
 use syn::spanned::Spanned;
-use syn::{parse_macro_input, Attribute, Data, DeriveInput, Field, Fields, Ident, Lit, Type};
+use syn::{parse_macro_input, Attribute, Data, DeriveInput, Field, Fields, Ident, Lit, Path, Type};
 
 #[proc_macro_derive(AppConfig, attributes(builder_derive, config_field, nested_field))]
 pub fn app_config_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -377,35 +379,45 @@ fn declare_impl_builder_enum(
     data: &syn::DataEnum,
     derives: Option<TokenStream>,
 ) -> TokenStream {
-    let variants: Vec<_> = data.variants.iter().map(|variant| {
-        (variant.ident.clone(),
-            match &variant.fields {
-                Fields::Unnamed(fields) => {
-                    if fields.unnamed.len() != 1 {
-                        panic!("expected each enum variant to have one field, {} has {}", variant.ident, fields.unnamed.len());
+    let variants: Vec<_> = data
+        .variants
+        .iter()
+        .map(|variant| {
+            (
+                variant.ident.clone(),
+                match &variant.fields {
+                    Fields::Unnamed(fields) => {
+                        if fields.unnamed.len() != 1 {
+                            panic!(
+                                "expected each enum variant to have one field, {} has {}",
+                                variant.ident,
+                                fields.unnamed.len()
+                            );
+                        }
+                        fields.unnamed.first().unwrap().clone()
                     }
-                    fields.unnamed.first().unwrap().clone()
-                }
-                _ => unimplemented!()
-            }
-        )
-    }).collect();
-    let declare_fields = variants.iter().map(|(variant, field)| {
-        let ty = &field.ty;
+                    _ => unimplemented!(),
+                },
+                format_ident!("{}", pascal_to_snake_case(&variant.ident.to_string())),
+            )
+        })
+        .collect();
+    let declare_fields = variants.iter().map(|(_, wrapped, field)| {
+        let ty = &wrapped.ty;
         quote! {
-            pub #variant: <#ty as AppConfig>::Builder,
+            pub #field: <#ty as AppConfig>::Builder,
         }
     });
-    let field_empty = variants.iter().map(|(variant, field)| {
-        let ty = &field.ty;
+    let field_empty = variants.iter().map(|(_, wrapped, field)| {
+        let ty = &wrapped.ty;
         quote! {
-            #variant: <#ty as AppConfig>::Builder::new(),
+            #field: <#ty as AppConfig>::Builder::new(),
         }
     });
-    let match_variant = variants.iter().map(|(variant, _)| {
+    let match_variant = variants.iter().map(|(variant, _, field)| {
         quote! {
-            if self.using.as_ref().map(|u| u == stringify!(#variant)).unwrap_or(false) {
-                return Ok(#struct_name::#variant(self.#variant.try_build()?));
+            if self.using.as_ref().map(|u| u == stringify!(#field)).unwrap_or(false) {
+                return Ok(#struct_name::#variant(self.#field.try_build()?));
             }
         }
     });
@@ -429,9 +441,7 @@ fn declare_impl_builder_enum(
                 Self::new()
             }
             pub fn default(self) -> #builder_struct_name {
-                // TODO
-                Self::new()
-                // Self::new_default()
+                Self::new_default()
             }
             pub fn try_build(self) -> Result<#struct_name, Vec<&'static str>> {
                 #(#match_variant )*
@@ -440,7 +450,6 @@ fn declare_impl_builder_enum(
             // pub fn combine(mut self, other: Self) -> Self {
             //     // #(#combine_fields )*
             //     self
-
             // }
             // // #(#field_functions )*
             // // #(#field_from_env_functions )*
@@ -535,5 +544,65 @@ fn is_optional_field(field: &Field) -> Option<Type> {
             }
         }
         _ => None,
+    }
+}
+
+lazy_static! {
+    static ref REVERSED_PASCAL_CASE_REGEX: Regex =
+        Regex::new(r"([a-z]+[A-Z]|[A-Z][A-Z]*|[0-9]+)").unwrap();
+}
+
+fn get_pascal_case_words(s: &str) -> Option<Vec<String>> {
+    let reversed_string = s.chars().rev().collect::<String>();
+    let mut words = Vec::new();
+    for cap in REVERSED_PASCAL_CASE_REGEX.captures_iter(&reversed_string) {
+        words.push(
+            cap.get(1)?
+                .as_str()
+                .chars()
+                .rev()
+                .collect::<String>()
+                .to_ascii_lowercase(),
+        );
+    }
+    Some(words.into_iter().rev().collect())
+}
+
+fn words_to_snake_case(words: Vec<String>) -> String {
+    words
+        .into_iter()
+        .reduce(|a, b| format!("{}_{}", a, b))
+        .unwrap()
+}
+
+fn pascal_to_snake_case(s: &str) -> String {
+    words_to_snake_case(get_pascal_case_words(s).expect("should be valid PascalCase"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn pascal_case_regex() {
+        assert_eq!(
+            get_pascal_case_words("HelloWorld"),
+            Some(vec!["hello".into(), "world".into()])
+        );
+        assert_eq!(
+            get_pascal_case_words("XMLHttpRequest"),
+            Some(vec!["xml".into(), "http".into(), "request".into()])
+        );
+        assert_eq!(
+            get_pascal_case_words("OptionA"),
+            Some(vec!["option".into(), "a".into()])
+        );
+        assert_eq!(
+            get_pascal_case_words("OptionABuilder"),
+            Some(vec!["option".into(), "a".into(), "builder".into()])
+        );
+        assert_eq!(
+            get_pascal_case_words("Option0"),
+            Some(vec!["option".into(), "0".into()])
+        );
     }
 }
