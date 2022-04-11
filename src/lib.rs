@@ -8,6 +8,3 @@ pub trait AppConfig {
 pub trait AppConfigChoice {
     type Choices;
 }
-
-#[cfg(test)]
-mod tests {}

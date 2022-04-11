@@ -40,7 +40,7 @@ struct DoubleNestingConfig {
 }
 
 #[allow(dead_code)]
-#[derive(AppConfig)]
+#[derive(AppConfig, Debug, PartialEq)]
 #[builder_derive(Deserialize)]
 struct DeserializeConfig {
     field_a: String,
@@ -85,6 +85,25 @@ struct OptionalNestedWithDefaultConfig {
 enum EnumConfig {
     ChoiceA(BasicConfig),
     ChoiceB(AttrDefaultConfig),
+}
+
+#[derive(AppConfig, Debug, PartialEq)]
+struct NestedEnumConfig {
+    #[nested_field]
+    nested: EnumConfig,
+}
+
+#[derive(AppConfig, Debug, PartialEq)]
+#[builder_derive(Deserialize)]
+enum EnumDeserializeConfig {
+    ChoiceA(DeserializeConfig),
+}
+
+#[derive(AppConfig)]
+#[builder_derive(Deserialize)]
+struct NestedEnumDeserializeConfig {
+    #[nested_field]
+    nested: EnumDeserializeConfig,
 }
 
 #[test]
@@ -416,5 +435,96 @@ fn enum_config() {
     assert_eq!(
         config,
         EnumConfig::ChoiceB(AttrDefaultConfig::builder().default().try_build().unwrap())
+    );
+}
+
+#[test]
+fn enum_defaults() {
+    let result = EnumConfig::builder().default().using_choice_b().try_build();
+    assert!(result.is_ok());
+    let config = result.unwrap();
+    assert_eq!(
+        config,
+        EnumConfig::ChoiceB(AttrDefaultConfig::builder().default().try_build().unwrap())
+    );
+}
+
+#[test]
+fn enum_combine() {
+    let result = EnumConfig::builder()
+        .map_choice_a(|b| b.field_a("test a".into()).field_b("test b".into()))
+        .combine(
+            EnumConfig::builder()
+                .map_choice_a(|b| b.field_b("ignored".into()).field_c("test c".into()))
+                .using_choice_a(),
+        )
+        .combine(EnumConfig::builder().using_choice_b())
+        .try_build();
+    assert!(result.is_ok());
+    let config = result.unwrap();
+    assert_eq!(
+        config,
+        EnumConfig::ChoiceA(
+            BasicConfig::builder()
+                .field_a("test a".into())
+                .field_b("test b".into())
+                .field_c("test c".into())
+                .try_build()
+                .unwrap()
+        )
+    );
+}
+
+#[test]
+fn enum_from_env() {
+    std::env::set_var("CONFIG_enum_from_env_using", "choice_a");
+    std::env::set_var("CONFIG_enum_from_env_choice_a_field_c", "test c");
+    let config = EnumConfig::builder()
+        .from_env_prefixed("CONFIG_enum_from_env")
+        .unwrap()
+        .map_choice_a(|b| b.field_a("test a".into()).field_b("test b".into()))
+        .try_build()
+        .unwrap();
+    assert_eq!(
+        config,
+        EnumConfig::ChoiceA(
+            BasicConfig::builder()
+                .field_a("test a".into())
+                .field_b("test b".into())
+                .field_c("test c".into())
+                .try_build()
+                .unwrap()
+        )
+    );
+}
+
+#[test]
+fn nested_enum() {
+    let config = NestedEnumConfig::builder()
+        .map_nested(|b| b.default().using_choice_b())
+        .try_build()
+        .unwrap();
+    assert_eq!(
+        config.nested,
+        EnumConfig::ChoiceB(AttrDefaultConfig::builder().default().try_build().unwrap()),
+    );
+}
+
+#[test]
+fn nested_deserialize_enum() {
+    let config_yml = "nested: {using: choice_a, choice_a: {field_a: 'test a', field_b: 'test b', field_c: 'test c'}}";
+    let builder: <NestedEnumDeserializeConfig as AppConfig>::Builder =
+        serde_yaml::from_str(&config_yml).unwrap();
+    let config = builder.try_build().unwrap();
+    assert_eq!(
+        config.nested,
+        EnumDeserializeConfig::ChoiceA(
+            DeserializeConfig::builder()
+                .field_a("test a".into())
+                .field_b("test b".into())
+                .field_c("test c".into())
+                .try_build()
+                .unwrap()
+        ),
     );
 }
