@@ -66,7 +66,7 @@ fn get_cool_app_config() -> CoolAppConfig {
 
 #[test]
 fn readme_example1() {
-    std::env::set_var("CONFIG_readme_example_field_b", "123");
+    std::env::set_var("CONFIG_README_EXAMPLE_FIELD_B", "123");
     let config = get_config();
     assert_eq!(config.field_a, "foo");
     assert_eq!(config.field_b, 123);
@@ -75,8 +75,8 @@ fn readme_example1() {
 
 #[test]
 fn readme_example2() {
-    std::env::set_var("COOL_APP_port", "3000");
-    std::env::set_var("COOL_APP_postgres_password", "secret");
+    std::env::set_var("COOL_APP_PORT", "3000");
+    std::env::set_var("COOL_APP_POSTGRES_PASSWORD", "secret");
     let config = get_cool_app_config();
     assert_eq!(config.port, 80);
     assert_eq!(config.addr, std::net::IpAddr::from([0, 0, 0, 0]));

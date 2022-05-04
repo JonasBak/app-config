@@ -273,7 +273,7 @@ fn declare_impl_builder_struct(
             };
             quote_spanned! {f.span()=>
                 pub fn #fn_name(&mut self, prefix: &str) -> Result<(), String> {
-                    let env_name = format!("{}_{}", prefix, stringify!(#ident));
+                    let env_name = format!("{}_{}", prefix, stringify!(#ident)).to_uppercase();
                     match std::env::var(&env_name).map(|value| (<#ty as std::str::FromStr>::from_str(&value), value)) {
                         Ok((Ok(value), _)) => {
                             #set_value
@@ -528,7 +528,7 @@ fn declare_impl_builder_enum(
             #(#using_functions )*
             #(#field_from_env_functions )*
             pub fn using_from_env(&mut self, prefix: &str) -> Result<(), Vec<String>> {
-                let env_name = format!("{}_using", prefix);
+                let env_name = format!("{}_using", prefix).to_uppercase();
                 self.using = std::env::var(&env_name).ok();
                 Ok(())
             }

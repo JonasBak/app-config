@@ -138,9 +138,9 @@ fn try_build_ok() {
 
 #[test]
 fn from_env_ok() {
-    std::env::set_var("CONFIG_field_a", "test a");
-    std::env::set_var("CONFIG_field_b", "123");
-    std::env::set_var("CONFIG_field_c", "false");
+    std::env::set_var("CONFIG_FIELD_A", "test a");
+    std::env::set_var("CONFIG_FIELD_B", "123");
+    std::env::set_var("CONFIG_FIELD_C", "false");
     let builder_result = MultipleTypesConfig::builder().from_env();
     assert!(builder_result.is_ok());
     let config_result = builder_result.unwrap().try_build();
@@ -153,9 +153,9 @@ fn from_env_ok() {
 
 #[test]
 fn from_env_err() {
-    std::env::set_var("CONFIG_from_env_err_field_a", "test a");
-    std::env::set_var("CONFIG_from_env_err_field_b", "test b");
-    std::env::set_var("CONFIG_from_env_err_field_c", "test c");
+    std::env::set_var("CONFIG_FROM_ENV_ERR_FIELD_A", "test a");
+    std::env::set_var("CONFIG_FROM_ENV_ERR_FIELD_B", "test b");
+    std::env::set_var("CONFIG_FROM_ENV_ERR_FIELD_C", "test c");
     let result = MultipleTypesConfig::builder().from_env_prefixed("CONFIG_from_env_err");
     assert!(result.is_err());
     let errors = result.err().unwrap().len();
@@ -164,9 +164,9 @@ fn from_env_err() {
 
 #[test]
 fn from_env_custom_prefix() {
-    std::env::set_var("MY_CUSTOM_PREFIX_field_a", "test a");
-    std::env::set_var("MY_CUSTOM_PREFIX_field_b", "123");
-    std::env::set_var("MY_CUSTOM_PREFIX_field_c", "false");
+    std::env::set_var("MY_CUSTOM_PREFIX_FIELD_A", "test a");
+    std::env::set_var("MY_CUSTOM_PREFIX_FIELD_B", "123");
+    std::env::set_var("MY_CUSTOM_PREFIX_FIELD_C", "false");
     let builder_result = MultipleTypesConfig::builder().from_env_prefixed("MY_CUSTOM_PREFIX");
     assert!(builder_result.is_ok());
     let config_result = builder_result.unwrap().try_build();
@@ -239,9 +239,9 @@ fn double_nested() {
 
 #[test]
 fn nested_from_env() {
-    std::env::set_var("CONFIG_nested_from_env_nested_a_field_a", "test a");
-    std::env::set_var("CONFIG_nested_from_env_nested_a_field_b", "test b");
-    std::env::set_var("CONFIG_nested_from_env_nested_a_field_c", "test c");
+    std::env::set_var("CONFIG_NESTED_FROM_ENV_NESTED_A_FIELD_A", "test a");
+    std::env::set_var("CONFIG_NESTED_FROM_ENV_NESTED_A_FIELD_B", "test b");
+    std::env::set_var("CONFIG_NESTED_FROM_ENV_NESTED_A_FIELD_C", "test c");
     let builder_result = NestingConfig::builder().from_env_prefixed("CONFIG_nested_from_env");
     assert!(builder_result.is_ok());
     let config_result = builder_result.unwrap().try_build();
@@ -334,7 +334,7 @@ fn nested_combine() {
 
 #[test]
 fn default_attr_not_used_when_from_env() {
-    std::env::set_var("NO_DEFAULT_VALUE_field_c", "false");
+    std::env::set_var("NO_DEFAULT_VALUE_FIELD_C", "false");
     let builder = AttrDefaultConfig::builder()
         .from_env_prefixed("NO_DEFAULT_VALUE")
         .unwrap();
@@ -477,8 +477,8 @@ fn enum_combine() {
 
 #[test]
 fn enum_from_env() {
-    std::env::set_var("CONFIG_enum_from_env_using", "choice_a");
-    std::env::set_var("CONFIG_enum_from_env_choice_a_field_c", "test c");
+    std::env::set_var("CONFIG_ENUM_FROM_ENV_USING", "choice_a");
+    std::env::set_var("CONFIG_ENUM_FROM_ENV_CHOICE_A_FIELD_C", "test c");
     let config = EnumConfig::builder()
         .from_env_prefixed("CONFIG_enum_from_env")
         .unwrap()

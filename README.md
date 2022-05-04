@@ -26,7 +26,7 @@ fn get_config() -> MyConfig {
 }
 ```
 
-If we set the environment variable `CONFIG_field_b=123`, and call `get_config` defined above, we should get an object that looks like this:
+If we set the environment variable `CONFIG_FIELD_B=123`, and call `get_config` defined above, we should get an object that looks like this:
 
 ```rust
 MyConfig {
@@ -39,7 +39,7 @@ MyConfig {
 You can also use it in more complex cases, like below, with nested structs, deserialization, and combining multiple builders/sources. Earlier sources take precedent, so in this case the priority of the fields are:
 
 1. `port` is always set to `PORT_NUMBER_FROM_CLI`
-2. Then environment variables (like `COOL_APP_postgres_password=secret`)
+2. Then environment variables (like `COOL_APP_POSTGRES_PASSWORD=secret`)
 3. Then values from the yaml file/string `CONFIG_YML`
 4. Then default values
 
@@ -90,7 +90,7 @@ fn get_cool_app_config() -> CoolAppConfig {
 }
 ```
 
-If we call `get_cool_app_config` with the environment variable `COOL_APP_postgres_password=secret` set, we should get something that looks like this:
+If we call `get_cool_app_config` with the environment variable `COOL_APP_POSTGRES_PASSWORD=secret` set, we should get something that looks like this:
 
 
 ```rust
