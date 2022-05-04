@@ -5,7 +5,9 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
 use regex::Regex;
 use syn::spanned::Spanned;
-use syn::{parse_macro_input, Attribute, Data, DeriveInput, Field, Fields, Ident, Lit, Type};
+use syn::{
+    parse_macro_input, Attribute, Data, DeriveInput, Field, Fields, Ident, Lit, Type, Visibility,
+};
 
 #[proc_macro_derive(AppConfig, attributes(builder_derive, config_field, nested_field))]
 pub fn app_config_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -18,12 +20,20 @@ pub fn app_config_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStr
     let builder_struct_name = format_ident!("{}Builder", struct_name);
 
     let builder_struct = match input.data {
-        Data::Struct(ref data) => {
-            declare_impl_builder_struct(&struct_name, &builder_struct_name, data, derives)
-        }
-        Data::Enum(ref data) => {
-            declare_impl_builder_enum(&struct_name, &builder_struct_name, data, derives)
-        }
+        Data::Struct(ref data) => declare_impl_builder_struct(
+            &struct_name,
+            &builder_struct_name,
+            data,
+            derives,
+            input.vis,
+        ),
+        Data::Enum(ref data) => declare_impl_builder_enum(
+            &struct_name,
+            &builder_struct_name,
+            data,
+            derives,
+            input.vis,
+        ),
         _ => unimplemented!(),
     };
 
@@ -45,6 +55,7 @@ fn declare_impl_builder_struct(
     builder_struct_name: &Ident,
     data: &syn::DataStruct,
     derives: Option<TokenStream>,
+    vis: Visibility,
 ) -> TokenStream {
     let fields = match &data.fields {
         Fields::Named(fields) => &fields.named,
@@ -310,7 +321,7 @@ fn declare_impl_builder_struct(
     quote! {
         #[allow(dead_code)]
         #derives
-        struct #builder_struct_name {
+        #vis struct #builder_struct_name {
             #(#declare_fields )*
         }
         #[allow(dead_code)]
@@ -376,6 +387,7 @@ fn declare_impl_builder_enum(
     builder_struct_name: &Ident,
     data: &syn::DataEnum,
     derives: Option<TokenStream>,
+    vis: Visibility,
 ) -> TokenStream {
     let variants: Vec<_> = data
         .variants
@@ -475,7 +487,7 @@ fn declare_impl_builder_enum(
     quote! {
         #[allow(dead_code)]
         #derives
-        struct #builder_struct_name {
+        #vis struct #builder_struct_name {
             pub using: Option<String>,
             #(#declare_fields )*
         }
